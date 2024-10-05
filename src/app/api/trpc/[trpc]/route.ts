@@ -1,34 +1,21 @@
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { type NextRequest } from "next/server";
+import { put } from '@vercel/blob'
+import { NextResponse } from 'next/server'
+import { customAlphabet } from 'nanoid'
 
-import { env } from "~/env";
-import { appRouter } from "~/server/api/root";
-import { createTRPCContext } from "~/server/api/trpc";
+export const runtime = 'edge'
 
-/**
- * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
- * handling a HTTP request (e.g. when you make requests from Client Components).
- */
-const createContext = async (req: NextRequest) => {
-  return createTRPCContext({
-    headers: req.headers,
-  });
-};
+const nanoid = customAlphabet(
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+  7
+) // 7-character random string
+export async function POST(req: Request) {
+  const file = req.body || ''
+  const contentType = req.headers.get('content-type') || 'text/plain'
+  const filename = `${nanoid()}.${contentType.split('/')[1]}`
+  const blob = await put(filename, file, {
+    contentType,
+    access: 'public',
+  })
 
-const handler = (req: NextRequest) =>
-  fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req,
-    router: appRouter,
-    createContext: () => createContext(req),
-    onError:
-      env.NODE_ENV === "development"
-        ? ({ path, error }) => {
-            console.error(
-              `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`
-            );
-          }
-        : undefined,
-  });
-
-export { handler as GET, handler as POST };
+  return NextResponse.json(blob)
+}
